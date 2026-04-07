@@ -8,7 +8,7 @@ function App() {
   const [lst, setLst] = useState("");
   const fet = async () => {
     const bc = await axios.get(
-      `http://universities.hipolabs.com/search?country=${lst}`,
+      `https://universities.hipolabs.com/search?country=${lst}`,
     );
     setFirst(bc.data);
     // console.log(bc.data[0]);
