@@ -1,1 +1,67 @@
 @import "tailwindcss";
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+}
+
+@theme {
+  --color-indigo-velvet: #3d348b;
+  --color-medium-slate-blue: #7678ed;
+  --color-amber-flame: #f7b801;
+  --color-tiger-orange: #f18701;
+  --color-cayenne-red: #f35b04;
+}
+
+:root {
+  --indigo-velvet: #3d348bff;
+  --medium-slate-blue: #7678edff;
+  --amber-flame: #f7b801ff;
+  --tiger-orange: #f18701ff;
+  --cayenne-red: #f35b04ff;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes heart-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+.heart-pop {
+  animation: heart-pop 0.35s ease-in-out;
+}
+
+html {
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.drawer-panel {
+  transform: translateX(100%);
+  transition: transform 0.3s ease-in-out;
+}
+
+.drawer-panel.drawer-open {
+  transform: translateX(0);
+}
+
+.drawer-overlay {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.drawer-overlay.overlay-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.hamburger-btn {
+  transition: transform 0.2s ease;
+}
+
+.hamburger-btn:hover {
+  transform: scale(1.1);
+}
