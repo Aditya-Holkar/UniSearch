@@ -1,7 +1,106 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import axios from "axios";
 
 const COUNTRIES = ["Australia", "Austria", "Belgium", "Brazil", "Canada", "China", "Denmark", "Egypt", "Finland", "France", "Germany", "Greece", "Hong Kong", "India", "Indonesia", "Ireland", "Israel", "Italy", "Japan", "Kenya", "Malaysia", "Mexico", "Netherlands", "New Zealand", "Nigeria", "Norway", "Pakistan", "Philippines", "Poland", "Portugal", "Russia", "Saudi Arabia", "Singapore", "South Africa", "South Korea", "Spain", "Sri Lanka", "Sweden", "Switzerland", "Taiwan", "Thailand", "Turkey", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Vietnam"];
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function UniversityMap({ country, universities }) {
+  const mapElement = useRef(null);
+  const map = useRef(null);
+  const markers = useRef([]);
+
+  const [locations, setLocations] = useState([]);
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeMessage, setGeocodeMessage] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function geocodeUniversities() {
+      if (!country || !universities.length) {
+        setLocations([]);
+        return;
+      }
+
+      setGeocoding(true);
+      setGeocodeMessage("");
+      const results = [];
+
+      for (const university of universities) {
+        if (cancelled) return;
+        const parts = [university.name, university["state-province"], university.country].filter(Boolean);
+        try {
+          const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(parts.join(", "))}`, {
+            headers: { Accept: "application/json" },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data[0]) results.push({ university, lat: Number(data[0].lat), lng: Number(data[0].lon) });
+          }
+        } catch {
+          // Keep the map usable if an individual university cannot be geocoded.
+        }
+        await wait(1100);
+      }
+
+      if (!cancelled) {
+        setLocations(results);
+        setGeocoding(false);
+        setGeocodeMessage(results.length ? `${results.length} university location${results.length === 1 ? "" : "s"} mapped.` : "University locations could not be found for this result set.");
+      }
+    }
+
+    geocodeUniversities();
+    return () => { cancelled = true; };
+  }, [country, universities]);
+
+  useEffect(() => {
+    if (!mapElement.current || !window.L || !country) return undefined;
+
+    map.current = window.L.map(mapElement.current, { scrollWheelZoom: true }).setView([20, 0], 2);
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map.current);
+
+    return () => {
+      markers.current.forEach((marker) => marker.remove());
+      markers.current = [];
+      map.current?.remove();
+      map.current = null;
+    };
+  }, [country]);
+
+  useEffect(() => {
+    if (!map.current || !window.L) return;
+
+    markers.current.forEach((marker) => marker.remove());
+    markers.current = [];
+
+    if (!locations.length) return;
+
+    const bounds = window.L.latLngBounds();
+    locations.forEach(({ university, lat, lng }) => {
+      const marker = window.L.marker([lat, lng]).addTo(map.current);
+      const website = university.web_pages?.[0];
+      marker.bindPopup(`<strong>${escapeHtml(university.name)}</strong>${university["state-province"] ? `<br>${escapeHtml(university["state-province"])}` : ""}${website ? `<br><a href="${escapeAttribute(website)}" target="_blank" rel="noopener noreferrer">Official site ↗</a>` : ""}`);
+      markers.current.push(marker);
+      bounds.extend([lat, lng]);
+    });
+
+    map.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 7 });
+  }, [locations]);
+
+  return <div className="card bg-base-100 border border-medium-slate-blue/20 shadow-sm overflow-hidden"><div className="card-body p-0"><div className="p-4 pb-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-bold text-indigo-velvet">{country} university map</h2><p className="text-sm text-medium-slate-blue/70">Real map pins are generated from the universities currently shown on this page.</p></div>{geocoding && <span className="badge badge-outline">Mapping locations…</span>}</div>{geocodeMessage && !geocoding && <p className="text-xs text-medium-slate-blue/60 mt-2">{geocodeMessage}</p>}</div><div ref={mapElement} className="h-[420px] w-full" /></div></div>;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value).replace(/`/g, "&#96;");
+}
 
 export default function Search() {
   const [universityName, setUniversityName] = useState("");
@@ -37,8 +136,6 @@ export default function Search() {
   const pages = Math.max(1, Math.ceil(data.length / perPage));
   const visible = data.slice((page - 1) * perPage, page * perPage);
   const changeSort = (key) => { if (sort === key) setDirection((d) => d === "asc" ? "desc" : "asc"); else { setSort(key); setDirection("asc"); } setPage(1); };
-  const mapQuery = country ? `universities in ${country}` : "";
-  const mapUrl = mapQuery ? `https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed` : "";
 
   return <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5">
     <div><h1 className="text-3xl font-bold text-indigo-velvet">Find a university</h1><p className="text-sm text-medium-slate-blue/70 mt-1">Search by university name, then narrow it down by country.</p></div>
@@ -48,7 +145,7 @@ export default function Search() {
       <button className="btn bg-medium-slate-blue text-white hover:bg-amber-flame border-0" onClick={search} disabled={loading || (!universityName.trim() && !country.trim())}>{loading ? <><span className="loading loading-spinner loading-sm"/> Searching...</> : "Search"}</button>
     </div><p className="text-xs text-medium-slate-blue/60 mt-1">Search by name, browse by country, or use both together.</p></div></div>
 
-    {country && <div className="card bg-base-100 border border-medium-slate-blue/20 shadow-sm overflow-hidden"><div className="card-body p-0"><div className="p-4 pb-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-indigo-velvet">{country} on the map</h2><p className="text-sm text-medium-slate-blue/70">University locations and search tags for the selected country.</p></div>{uni.length > 0 && <span className="badge badge-lg bg-amber-flame text-indigo-velvet border-0">{uni.length} universities</span>}</div></div><div className="relative h-[420px] w-full"><iframe title={`${country} university map`} src={mapUrl} className="w-full h-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /><div className="absolute top-4 right-4 w-[min(360px,calc(100%-2rem))] max-h-[calc(100%-2rem)] overflow-y-auto rounded-2xl bg-base-100/95 backdrop-blur shadow-xl border border-medium-slate-blue/20 p-3"><div className="text-xs font-bold uppercase tracking-wider text-medium-slate-blue/60 mb-2">University tags</div>{uni.length > 0 ? <div className="flex flex-wrap gap-2">{uni.map((u) => <a key={`${u.name}-${u.country}`} href={u.web_pages?.[0] || `https://www.google.com/search?q=${encodeURIComponent(`${u.name} ${u.country}`)}`} target="_blank" rel="noopener noreferrer" className="badge badge-outline h-auto min-h-8 py-1.5 px-3 text-left whitespace-normal hover:bg-amber-flame hover:text-indigo-velvet transition-colors">📍 {u.name}</a>)}</div> : <p className="text-sm text-medium-slate-blue/65">Run the search to load the matching university tags here.</p>}</div></div></div></div>}
+    {country && data.length > 0 && <UniversityMap country={country} universities={visible} />}
 
     {error && <div role="alert" className="alert alert-error"><span>{error}</span><button className="btn btn-sm" onClick={search}>Retry</button></div>}
     {!loading && searched && !error && !uni.length && <div className="alert alert-info">No universities matched your search. Try a shorter university name or select a country.</div>}
