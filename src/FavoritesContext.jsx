@@ -15,11 +15,14 @@ function load(key, fallback) {
 
 const FavoritesContext = createContext(null);
 
+export const APPLICATION_STATUSES = ["Researching", "Shortlisted", "Applying", "Applied"];
+
 export function FavoritesProvider({ children }) {
   const [favorites, setFavorites] = useState(() => {
     const data = load("uni-favorites", []);
-    if (Array.isArray(data) && data.length > 0 && typeof data[0] === "string") return [];
-    return data;
+    if (!Array.isArray(data)) return [];
+    if (data.length > 0 && typeof data[0] === "string") return [];
+    return data.map((item) => ({ ...item, status: item.status || "Researching", note: item.note || "" }));
   });
 
   useEffect(() => {
@@ -38,8 +41,14 @@ export function FavoritesProvider({ children }) {
         "state-province": params["state-province"],
         web_pages: params.web_pages,
         domains: params.domains,
+        status: "Researching",
+        note: "",
       }];
     });
+  }, []);
+
+  const updateFavorite = useCallback((id, changes) => {
+    setFavorites((prev) => prev.map((item) => item.id === id ? { ...item, ...changes } : item));
   }, []);
 
   const isFavorite = useCallback((params) => {
@@ -47,7 +56,7 @@ export function FavoritesProvider({ children }) {
   }, [favorites]);
 
   return (
-    <FavoritesContext.Provider value={{ favorites, toggleFav, isFavorite, favKey }}>
+    <FavoritesContext.Provider value={{ favorites, toggleFav, updateFavorite, isFavorite, favKey }}>
       {children}
     </FavoritesContext.Provider>
   );
