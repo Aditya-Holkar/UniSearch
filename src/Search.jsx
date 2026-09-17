@@ -37,6 +37,7 @@ export default function Search() {
   const pages = Math.max(1, Math.ceil(data.length / perPage));
   const visible = data.slice((page - 1) * perPage, page * perPage);
   const changeSort = (key) => { if (sort === key) setDirection((d) => d === "asc" ? "desc" : "asc"); else { setSort(key); setDirection("asc"); } setPage(1); };
+  const mapUrl = country ? `https://www.google.com/maps?q=${encodeURIComponent(country)}&output=embed` : "";
 
   return <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5">
     <div><h1 className="text-3xl font-bold text-indigo-velvet">Find a university</h1><p className="text-sm text-medium-slate-blue/70 mt-1">Search by university name, then narrow it down by country.</p></div>
@@ -45,6 +46,9 @@ export default function Search() {
       <label className="form-control"><span className="label-text font-semibold">Country <span className="font-normal opacity-60">(optional)</span></span><select className="select select-bordered w-full" value={country} onChange={(e) => setCountry(e.target.value)}><option value="">All countries</option>{COUNTRIES.map((item) => <option key={item}>{item}</option>)}</select></label>
       <button className="btn bg-medium-slate-blue text-white hover:bg-amber-flame border-0" onClick={search} disabled={loading || (!universityName.trim() && !country.trim())}>{loading ? <><span className="loading loading-spinner loading-sm"/> Searching...</> : "Search"}</button>
     </div><p className="text-xs text-medium-slate-blue/60 mt-1">Search by name, browse by country, or use both together.</p></div></div>
+
+    {country && <div className="card bg-base-100 border border-medium-slate-blue/20 shadow-sm overflow-hidden"><div className="card-body p-0"><div className="p-4 pb-3"><h2 className="text-lg font-bold text-indigo-velvet">{country} on the map</h2><p className="text-sm text-medium-slate-blue/70">Explore the selected country and its location before browsing the university results.</p></div><div className="h-[360px] w-full"><iframe title={`${country} map`} src={mapUrl} className="w-full h-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /></div></div></div>}
+
     {error && <div role="alert" className="alert alert-error"><span>{error}</span><button className="btn btn-sm" onClick={search}>Retry</button></div>}
     {!loading && searched && !error && !uni.length && <div className="alert alert-info">No universities matched your search. Try a shorter university name or select a country.</div>}
     {uni.length > 0 && <div className="space-y-3"><div className="flex flex-wrap gap-2 justify-between items-center"><div className="font-semibold">{data.length} universities found</div><input className="input input-bordered input-sm max-w-xs" placeholder="Filter results..." value={queryFilter} onChange={(e) => { setQueryFilter(e.target.value); setPage(1); }}/></div>
