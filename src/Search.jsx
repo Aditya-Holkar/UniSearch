@@ -14,12 +14,34 @@ const COUNTRIES = [
   "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
 ];
 
+const GEOCODE_CACHE_KEY = "unsearch-map-geocodes-v1";
+const GEOCODE_DELAY = 1100;
+
+function readGeocodeCache() {
+  try {
+    return JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeGeocodeCache(cache) {
+  try {
+    localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // Ignore storage quota/private-mode errors; the map still works in-memory.
+  }
+}
+
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function UniversityMap({ country, universities }) {
   const mapElement = useRef(null);
   const map = useRef(null);
   const markers = useRef([]);
+  const geocodeCache = useRef(readGeocodeCache());
+  const lastRequestAt = useRef(0);
+  const geocodeRun = useRef(0);
 
   const [locations, setLocations] = useState([]);
   const [geocoding, setGeocoding] = useState(false);
@@ -27,35 +49,72 @@ function UniversityMap({ country, universities }) {
 
   useEffect(() => {
     let cancelled = false;
+    const runId = ++geocodeRun.current;
+
     async function geocodeUniversities() {
       if (!country || !universities.length) {
         setLocations([]);
+        setGeocoding(false);
+        setGeocodeMessage("");
         return;
       }
 
-      setGeocoding(true);
-      setGeocodeMessage("");
+      const cache = geocodeCache.current;
       const results = [];
+      const pending = [];
 
-      for (const university of universities) {
-        if (cancelled) return;
-        const parts = [university.name, university["state-province"], university.country].filter(Boolean);
+      universities.forEach((university) => {
+        const query = [university.name, university["state-province"], university.country].filter(Boolean).join(", ");
+        const cached = cache[query];
+        if (cached && Number.isFinite(cached.lat) && Number.isFinite(cached.lng)) {
+          results.push({ university, lat: cached.lat, lng: cached.lng });
+        } else {
+          pending.push({ university, query });
+        }
+      });
+
+      if (!pending.length) {
+        setLocations(results);
+        setGeocoding(false);
+        setGeocodeMessage(results.length ? `${results.length} university location${results.length === 1 ? "" : "s"} mapped.` : "University locations could not be found for this result set.");
+        return;
+      }
+
+      setLocations(results);
+      setGeocoding(true);
+      setGeocodeMessage(results.length ? `${results.length} cached location${results.length === 1 ? "" : "s"} loaded. Finding the rest…` : "Finding university locations…");
+
+      for (const { university, query } of pending) {
+        if (cancelled || runId !== geocodeRun.current) return;
+
+        const elapsed = Date.now() - lastRequestAt.current;
+        if (elapsed < GEOCODE_DELAY) await wait(GEOCODE_DELAY - elapsed);
+        if (cancelled || runId !== geocodeRun.current) return;
+
         try {
-          const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(parts.join(", "))}`, {
+          lastRequestAt.current = Date.now();
+          const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`, {
             headers: { Accept: "application/json" },
           });
           if (response.ok) {
             const data = await response.json();
-            if (data[0]) results.push({ university, lat: Number(data[0].lat), lng: Number(data[0].lon) });
+            if (data[0]) {
+              const lat = Number(data[0].lat);
+              const lng = Number(data[0].lon);
+              if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                cache[query] = { lat, lng };
+                results.push({ university, lat, lng });
+                writeGeocodeCache(cache);
+                setLocations([...results]);
+              }
+            }
           }
         } catch {
           // Keep the map usable if an individual university cannot be geocoded.
         }
-        await wait(1100);
       }
 
-      if (!cancelled) {
-        setLocations(results);
+      if (!cancelled && runId === geocodeRun.current) {
         setGeocoding(false);
         setGeocodeMessage(results.length ? `${results.length} university location${results.length === 1 ? "" : "s"} mapped.` : "University locations could not be found for this result set.");
       }
@@ -69,7 +128,7 @@ function UniversityMap({ country, universities }) {
     if (!mapElement.current || !window.L || !country) return undefined;
 
     map.current = window.L.map(mapElement.current, { scrollWheelZoom: true }).setView([20, 0], 2);
-    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map.current);
@@ -102,7 +161,7 @@ function UniversityMap({ country, universities }) {
     map.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 7 });
   }, [locations]);
 
-  return <div className="card bg-base-100 border border-medium-slate-blue/20 shadow-sm overflow-hidden"><div className="card-body p-0"><div className="p-4 pb-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-bold text-indigo-velvet">{country} university map</h2><p className="text-sm text-medium-slate-blue/70">Real map pins are generated from the universities currently shown on this page.</p></div>{geocoding && <span className="badge badge-outline">Mapping locations…</span>}</div>{geocodeMessage && !geocoding && <p className="text-xs text-medium-slate-blue/60 mt-2">{geocodeMessage}</p>}</div><div ref={mapElement} className="h-[420px] w-full" /></div></div>;
+  return <div className="card bg-base-100 border border-medium-slate-blue/20 shadow-sm overflow-hidden"><div className="card-body p-0"><div className="p-4 pb-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-bold text-indigo-velvet">{country} university map</h2><p className="text-sm text-medium-slate-blue/70">Map pins load instantly from cache, with new locations added in the background.</p></div>{geocoding && <span className="badge badge-outline">Mapping…</span>}</div>{geocodeMessage && !geocoding && <p className="text-xs text-medium-slate-blue/60 mt-2">{geocodeMessage}</p>}{geocodeMessage && geocoding && <p className="text-xs text-medium-slate-blue/60 mt-2">{geocodeMessage}</p>}</div><div ref={mapElement} className="h-[420px] w-full" /></div></div>;
 }
 
 function escapeHtml(value) {
