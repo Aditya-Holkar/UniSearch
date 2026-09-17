@@ -1,22 +1,28 @@
 export default async function handler(req, res) {
-  const { country } = req.query;
+  const { name, country } = req.query;
+  const universityName = typeof name === "string" ? name.trim() : "";
+  const selectedCountry = typeof country === "string" ? country.trim() : "";
 
-  if (!country || !country.trim()) {
-    return res.status(400).json({ error: "Country parameter is required" });
+  if (!universityName && !selectedCountry) {
+    return res.status(400).json({ error: "University name or country is required" });
   }
 
   try {
+    const params = new URLSearchParams();
+    if (universityName) params.set("name", universityName);
+    if (selectedCountry) params.set("country", selectedCountry);
+
     const response = await fetch(
-      `http://universities.hipolabs.com/search?country=${encodeURIComponent(country)}`,
+      `https://universities.hipolabs.com/search?${params.toString()}`,
     );
     if (!response.ok) {
       return res.status(response.status).json({ error: "External API request failed" });
     }
-    const data = await response.json();
 
+    const data = await response.json();
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.status(200).json(data);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: "Failed to fetch universities" });
   }
 }
