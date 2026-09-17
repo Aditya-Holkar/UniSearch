@@ -1,16 +1,41 @@
-# React + Vite
+# UniSearch 🎓
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+UniSearch is a focused university discovery and shortlist workspace built with React, Vite, Tailwind CSS and daisyUI.
 
-Currently, two official plugins are available:
+## What it does
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- 🌍 Search universities by country using the Hipolabs Universities API.
+- 🔎 Filter, sort, paginate and switch between table/card views.
+- 💛 Save universities into a persistent shortlist.
+- 📌 Track shortlist status: Researching, Shortlisted, Applying, or Applied.
+- 📝 Add private notes to each saved university.
+- ⚖️ Compare up to four saved universities side by side.
+- 📥 Export search results or selected rows as CSV.
+- 🌙 Persist a light/dark theme preference.
 
-## React Compiler
+## Product flow
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Discover → Shortlist → Compare → Apply**
 
-## Expanding the ESLint configuration
+The project intentionally keeps the decision workflow lightweight. It does not invent tuition, rankings, acceptance rates, deadlines, or other university facts that are not available from the connected data source. Users are encouraged to verify important admissions and cost information on each university's official website.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Run locally
+
+```bash
+npm install
+npm run dev
+```
+
+Build for production:
+
+```bash
+npm run build
+```
+
+## Data
+
+University discovery is powered by the [Hipolabs Universities API](https://universities.hipolabs.com/), accessed through the Vercel serverless endpoint in `api/universities.js`.
+
+## Inspiration
+
+The current product direction takes cues from university discovery and study-abroad projects that emphasize advanced filtering, shortlisting, side-by-side comparison, personalized planning, and progress tracking. Examples include Uniscope and Abroad Compass.
